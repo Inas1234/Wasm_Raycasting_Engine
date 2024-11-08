@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rust WebAssembly Particle System</title>
+    <script type="module">
+      import init, { start } from "./wasm_game_engine.js";
+
+      async function main() {
+        await init();
+        start();
+      }
+
+      main();
+    </script>
+  </head>
+  <body>
+    <canvas id="game-canvas" width="800" height="600"></canvas>
+  </body>
+</html>
