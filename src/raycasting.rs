@@ -7,15 +7,17 @@ pub struct Ray {
     pub texture_coord: f64,
     pub vertical_hit: bool,
     pub hit: bool,
+    pub texture_id: u8
 }
 
 impl Ray {
-    pub fn new(distance: f64, texture_coord: f64, vertical_hit: bool, hit: bool) -> Self {
+    pub fn new(distance: f64, texture_coord: f64, vertical_hit: bool, hit: bool, texture_id: u8) -> Self {
         Ray {
             distance,
             texture_coord,
             vertical_hit,
             hit,
+            texture_id
         }
     }
 }
@@ -24,8 +26,8 @@ pub fn cast_ray(player: &Player, angle: f64) -> Ray {
     let sin_angle = angle.sin();
     let cos_angle = angle.cos();
 
-    let step_x = if cos_angle > 0.0 { 1 } else { -1 };
-    let step_y = if sin_angle > 0.0 { 1 } else { -1 };
+    let mut step_x = if cos_angle > 0.0 { 1 } else { -1 };
+    let mut step_y = if sin_angle > 0.0 { 1 } else { -1 };
 
     let delta_dist_x = (1.0 / cos_angle.abs()).abs();
     let delta_dist_y = (1.0 / sin_angle.abs()).abs();
@@ -47,6 +49,8 @@ pub fn cast_ray(player: &Player, angle: f64) -> Ray {
     let mut hit = false;
     let mut vertical_hit = false;
 
+    let mut texture_id = 0;
+
     while !hit {
         if side_dist_x < side_dist_y {
             side_dist_x += delta_dist_x;
@@ -59,7 +63,8 @@ pub fn cast_ray(player: &Player, angle: f64) -> Ray {
         }
 
         if map_x >= 0 && map_y >= 0 && map_x < MAP_WIDTH as i32 && map_y < MAP_HEIGHT as i32 {
-            if MAP[map_y as usize * MAP_WIDTH + map_x as usize] == 1 {
+            texture_id = MAP[map_y as usize * MAP_WIDTH + map_x as usize];
+            if texture_id > 0 {
                 hit = true;
             }
         }
@@ -82,6 +87,7 @@ pub fn cast_ray(player: &Player, angle: f64) -> Ray {
         texture_coord,
         vertical_hit,
         hit,
+        texture_id,
     }
 }
 
@@ -105,12 +111,12 @@ pub fn render_scene(player: &Player, renderer: &mut Renderer) {
                 let d = y * 256 - (screen_height as i32 * 128) + line_height * 128;
                 let tex_y = ((d * renderer.texture_height as i32) / line_height) / 256;
                 
-                let color = renderer.get_texture_color(tex_x, tex_y as usize);
+                let color = renderer.get_texture_color(ray.texture_id as usize - 1, tex_x, tex_y as usize);
                 renderer.draw_line(
                     x as f64 * 6.0,
                     y as f64,
                     6.0,
-                    1.0,
+                     1.0,
                     &color,
                 );
             }

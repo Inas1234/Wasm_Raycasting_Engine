@@ -27,7 +27,12 @@ impl Engine {
             .expect("Failed to convert to HtmlCanvasElement");
 
         let mut renderer = Renderer::new(canvas.clone());
-        renderer.load_texture("wall-texture");
+
+        let texture_ids = ["texture1", "texture2", "texture3"];
+        for texture_id in texture_ids.iter() {
+            renderer.load_texture(texture_id);
+        }
+
         let player = Player::new();
 
         let engine = Rc::new(RefCell::new(Engine {
@@ -61,7 +66,14 @@ impl Engine {
         self.renderer.clear();
         render_scene(&self.player, &mut self.renderer);
 
-        self.renderer.draw_minimap(&MAP, MAP_WIDTH, MAP_HEIGHT, self.player.x, self.player.y, self.player.direction);
+        self.renderer.draw_minimap(
+            &MAP,               // Pass the updated MAP containing different wall types
+            MAP_WIDTH,
+            MAP_HEIGHT,
+            self.player.x,
+            self.player.y,
+            self.player.direction,
+        );
     }
 
     fn setup_input(engine: Rc<RefCell<Self>>) {
