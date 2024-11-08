@@ -66,6 +66,7 @@ pub fn cast_ray(player: &Player, angle: f64, cos_angle: f64, sin_angle: f64) -> 
 
             if texture_id > 0 {
                 hit = true;
+                break;
             }
         }
     }
@@ -92,11 +93,33 @@ pub fn cast_ray(player: &Player, angle: f64, cos_angle: f64, sin_angle: f64) -> 
 }
 
 pub fn render_scene(player: &Player, renderer: &mut Renderer) {
-    let num_rays = 120;
-    let screen_width = renderer.context.canvas().unwrap().width() as f64;
-    let screen_height = renderer.context.canvas().unwrap().height() as f64;
+    // Clear the framebuffer before drawing
+    renderer.clear_framebuffer();
+
+    let num_rays = renderer.screen_width / 6; // Use the actual screen width
+    let screen_width = renderer.screen_width as f64;
+    let screen_height = renderer.screen_height as f64;
     let half_screen_height = screen_height / 2.0;
 
+    // Render ceiling and floor first
+    for y in 0..renderer.screen_height {
+        let is_ceiling = y < (renderer.screen_height / 2);
+        let color = if is_ceiling {
+            (50, 50, 50) // Ceiling color
+        } else {
+            (100, 100, 100) // Floor color
+        };
+
+        for x in 0..renderer.screen_width {
+            let index = (y * renderer.screen_width + x) * 4;
+            renderer.framebuffer[index] = color.0;
+            renderer.framebuffer[index + 1] = color.1;
+            renderer.framebuffer[index + 2] = color.2;
+            renderer.framebuffer[index + 3] = 255; // Alpha channel
+        }
+    }
+
+    // Now render walls
     for x in 0..num_rays {
         let angle = player.direction - player.fov / 2.0 + (x as f64 / num_rays as f64) * player.fov;
         let cos_angle = angle.cos();
@@ -108,23 +131,20 @@ pub fn render_scene(player: &Player, renderer: &mut Renderer) {
         let draw_start = (-line_height / 2 + half_screen_height as i32).max(0);
         let draw_end = (line_height / 2 + half_screen_height as i32).min(screen_height as i32 - 1);
 
-        // Calculate texture coordinates
         let tex_x = if ray.vertical_hit {
             (player.y + ray.distance * sin_angle).fract() * renderer.texture_width as f64
         } else {
             (player.x + ray.distance * cos_angle).fract() * renderer.texture_width as f64
         } as usize;
 
-        // Draw the wall with the texture
         for y in draw_start..draw_end {
             let d = y * 256 - (screen_height as i32 * 128) + line_height * 128;
             let tex_y = ((d * renderer.texture_height as i32) / line_height) / 256;
 
-            // Get the color from the texture
-            let color = renderer.get_texture_color(ray.texture_id as usize - 1, tex_x, tex_y as usize);
-            
-            // Draw directly to the canvas
-            renderer.draw_line(x as f64 * 6.0, y as f64, 6.0, 1.0, &color);
+            let (r, g, b) = renderer.get_texture_color_rgb(ray.texture_id as usize - 1, tex_x, tex_y as usize);
+            renderer.draw_rect(x as f64 * 6.0, y as f64, 6.0, 1.0, Some((r, g, b)));
         }
     }
+
+    renderer.flush();
 }

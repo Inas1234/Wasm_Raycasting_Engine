@@ -3,7 +3,7 @@ use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlImageElement};
 
 pub struct Renderer {
     pub context: CanvasRenderingContext2d,
-    framebuffer: Vec<u8>, // Store the entire screen in a buffer
+    pub framebuffer: Vec<u8>, // Store the entire screen in a buffer
     textures: Vec<Vec<u8>>,
     pub texture_width: usize,
     pub texture_height: usize,
@@ -28,7 +28,7 @@ impl Renderer {
     
             Renderer {
                 context,
-                framebuffer: vec![0; (screen_width * screen_height * 4) as usize], // RGBA buffer
+                framebuffer: vec![0; screen_width * screen_height * 4], // RGBA buffer
                 textures: Vec::new(),
                 texture_width: 64,
                 texture_height: 64,
@@ -178,24 +178,22 @@ impl Renderer {
     }
 
     pub fn flush(&self) {
-        
         let image_data = web_sys::ImageData::new_with_u8_clamped_array_and_sh(
             wasm_bindgen::Clamped(&self.framebuffer),
             self.screen_width as u32,
             self.screen_height as u32,
         )
         .unwrap();
+
+        // Clear the canvas before drawing the new frame
+        self.context.clear_rect(0.0, 0.0, self.screen_width as f64, self.screen_height as f64);
+
+        // Draw the framebuffer to the canvas
         self.context.put_image_data(&image_data, 0.0, 0.0).unwrap();
     }
 
-    pub fn draw_rect(&mut self, x: f64, y: f64, width: f64, height: f64, color: &str) {
-        let (r, g, b) = match color {
-            "black" => (0, 0, 0),
-            "lightgray" => (211, 211, 211),
-            "darkgray" => (169, 169, 169),
-            "lightblue" => (173, 216, 230),
-            _ => (255, 255, 255),
-        };
+    pub fn draw_rect(&mut self, x: f64, y: f64, width: f64, height: f64, color: Option<(u8, u8, u8)>) {
+        let (r, g, b) = color.unwrap_or((0, 0, 0));
 
         let start_x = x as u32;
         let start_y = y as u32;
@@ -204,16 +202,41 @@ impl Renderer {
 
         for px in start_x..end_x {
             for py in start_y..end_y {
-                let index = ((py * self.screen_width as u32 + px) * 4) as usize;
-                self.framebuffer[index] = r;
-                self.framebuffer[index + 1] = g;
-                self.framebuffer[index + 2] = b;
-                self.framebuffer[index + 3] = 255; // Alpha channel
+                if px < self.screen_width as u32 && py < self.screen_height as u32 {
+                    let index = ((py * self.screen_width as u32 + px) * 4) as usize;
+                    self.framebuffer[index] = r;
+                    self.framebuffer[index + 1] = g;
+                    self.framebuffer[index + 2] = b;
+                    self.framebuffer[index + 3] = 255; // Alpha channel
+                }
             }
         }
     }
 
+    pub fn get_texture_color_rgb(&self, texture_index: usize, tex_x: usize, tex_y: usize) -> (u8, u8, u8) {
+        if texture_index >= self.textures.len() {
+            return (0, 0, 0); // Return black if texture not found
+        }
 
+        let texture = &self.textures[texture_index];
+        let tex_width = self.texture_width;
+        let index = (tex_y * tex_width + tex_x) * 4;
+
+        if index + 3 >= texture.len() {
+            return (0, 0, 0); // Out of bounds, return black
+        }
+
+        let r = texture[index];
+        let g = texture[index + 1];
+        let b = texture[index + 2];
+        (r, g, b)
+    }
+
+    pub fn clear_framebuffer(&mut self) {
+        for i in 0..self.framebuffer.len() {
+            self.framebuffer[i] = 0; // Set all pixels to black (RGBA = 0)
+        }
+    }
 
     
 }
