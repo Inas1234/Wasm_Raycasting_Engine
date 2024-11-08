@@ -71,17 +71,11 @@ impl Engine {
         let current_time = get_performance().now();
         let delta_time = current_time - self.last_frame_time;
         self.last_frame_time = current_time;
-    
-        // Calculate FPS (frames per second)
-        let fps = if delta_time > 0.0 { (1000.0 / delta_time).round() } else { 0.0 };
-    
-        // Render the 3D scene
-        render_scene(&self.player, &mut self.renderer);
-    
+ 
         render_scene(&self.player, &mut self.renderer);
 
         self.renderer.draw_minimap(
-            &MAP,               // Pass the updated MAP containing different wall types
+            &MAP,               
             MAP_WIDTH,
             MAP_HEIGHT,
             self.player.x,
@@ -89,7 +83,12 @@ impl Engine {
             self.player.direction,
         );
 
-        self.renderer.draw_text(10.0, 20.0, &format!("FPS: {}", fps));
+        let frame_count = 0;
+        if frame_count % 10 == 0 {
+            let fps = 1000.0 / delta_time;
+            self.renderer.draw_text(10.0, 20.0, &format!("FPS: {}", fps as i32));
+        }    
+
     }
 
     fn setup_input(engine: Rc<RefCell<Self>>) {

@@ -22,22 +22,19 @@ impl Ray {
     }
 }
 
-pub fn cast_ray(player: &Player, angle: f64) -> Ray {
-    let sin_angle = angle.sin();
-    let cos_angle = angle.cos();
+pub fn cast_ray(player: &Player, angle: f64, cos_angle: f64, sin_angle: f64) -> Ray {
+    let step_x = if cos_angle > 0.0 { 1 } else { -1 };
+    let step_y = if sin_angle > 0.0 { 1 } else { -1 };
 
-    let mut step_x = if cos_angle > 0.0 { 1 } else { -1 };
-    let mut step_y = if sin_angle > 0.0 { 1 } else { -1 };
-
-    let delta_dist_x = (1.0 / cos_angle.abs()).abs();
-    let delta_dist_y = (1.0 / sin_angle.abs()).abs();
+    let delta_dist_x = (1.0 / cos_angle).abs();
+    let delta_dist_y = (1.0 / sin_angle).abs();
 
     let mut side_dist_x = if cos_angle > 0.0 {
         (player.x.floor() + 1.0 - player.x) * delta_dist_x
     } else {
         (player.x - player.x.floor()) * delta_dist_x
     };
-    
+
     let mut side_dist_y = if sin_angle > 0.0 {
         (player.y.floor() + 1.0 - player.y) * delta_dist_y
     } else {
@@ -46,11 +43,12 @@ pub fn cast_ray(player: &Player, angle: f64) -> Ray {
 
     let mut map_x = player.x as i32;
     let mut map_y = player.y as i32;
+
     let mut hit = false;
     let mut vertical_hit = false;
-
     let mut texture_id = 0;
 
+    // Cast rays and minimize calculations
     while !hit {
         if side_dist_x < side_dist_y {
             side_dist_x += delta_dist_x;
@@ -62,8 +60,10 @@ pub fn cast_ray(player: &Player, angle: f64) -> Ray {
             vertical_hit = false;
         }
 
-        if map_x >= 0 && map_y >= 0 && map_x < MAP_WIDTH as i32 && map_y < MAP_HEIGHT as i32 {
-            texture_id = MAP[map_y as usize * MAP_WIDTH + map_x as usize];
+        if map_x >= 0 && map_y >= 0 && (map_x as usize) < MAP_WIDTH && (map_y as usize) < MAP_HEIGHT {
+            let map_index = (map_y as usize) * MAP_WIDTH + (map_x as usize);
+            texture_id = MAP[map_index];
+
             if texture_id > 0 {
                 hit = true;
             }
@@ -93,59 +93,38 @@ pub fn cast_ray(player: &Player, angle: f64) -> Ray {
 
 pub fn render_scene(player: &Player, renderer: &mut Renderer) {
     let num_rays = 120;
-    let half_fov = player.fov / 2.0;
-    let screen_width = 800.0;
-    let screen_height = 600.0;
+    let screen_width = renderer.context.canvas().unwrap().width() as f64;
+    let screen_height = renderer.context.canvas().unwrap().height() as f64;
     let half_screen_height = screen_height / 2.0;
 
-    // Colors for the floor and ceiling
-    let floor_color = "darkgray";
-    let ceiling_color = "lightblue";
-
     for x in 0..num_rays {
-        let angle = player.direction - half_fov + (x as f64 / num_rays as f64) * player.fov;
-        let ray = cast_ray(player, angle);
+        let angle = player.direction - player.fov / 2.0 + (x as f64 / num_rays as f64) * player.fov;
+        let cos_angle = angle.cos();
+        let sin_angle = angle.sin();
 
-        if ray.hit {
-            let line_height = (screen_height / ray.distance) as i32;
-            let draw_start = (-line_height / 2 + half_screen_height as i32).max(0);
-            let draw_end = (line_height / 2 + half_screen_height as i32).min(screen_height as i32 - 1);
+        let ray = cast_ray(player, angle, cos_angle, sin_angle);
 
-            let tex_x = (ray.texture_coord * renderer.texture_width as f64) as usize % renderer.texture_width;
+        let line_height = (screen_height / ray.distance) as i32;
+        let draw_start = (-line_height / 2 + half_screen_height as i32).max(0);
+        let draw_end = (line_height / 2 + half_screen_height as i32).min(screen_height as i32 - 1);
 
-            for y in draw_start..draw_end {
-                let d = y * 256 - (screen_height as i32 * 128) + line_height * 128;
-                let tex_y = ((d * renderer.texture_height as i32) / line_height) / 256;
-                
-                let color = renderer.get_texture_color(ray.texture_id as usize - 1, tex_x, tex_y as usize);
-                renderer.draw_line(
-                    x as f64 * 6.0,
-                    y as f64,
-                    6.0,
-                    1.0,
-                    &color,
-                );
-            }
+        // Calculate texture coordinates
+        let tex_x = if ray.vertical_hit {
+            (player.y + ray.distance * sin_angle).fract() * renderer.texture_width as f64
+        } else {
+            (player.x + ray.distance * cos_angle).fract() * renderer.texture_width as f64
+        } as usize;
 
-            for y in 0..draw_start {
-                renderer.draw_line(
-                    x as f64 * 6.0,
-                    y as f64,
-                    6.0,
-                    1.0,
-                    ceiling_color,
-                );
-            }
+        // Draw the wall with the texture
+        for y in draw_start..draw_end {
+            let d = y * 256 - (screen_height as i32 * 128) + line_height * 128;
+            let tex_y = ((d * renderer.texture_height as i32) / line_height) / 256;
 
-            for y in draw_end..screen_height as i32 {
-                renderer.draw_line(
-                    x as f64 * 6.0,
-                    y as f64,
-                    6.0,
-                    1.0,
-                    floor_color,
-                );
-            }
+            // Get the color from the texture
+            let color = renderer.get_texture_color(ray.texture_id as usize - 1, tex_x, tex_y as usize);
+            
+            // Draw directly to the canvas
+            renderer.draw_line(x as f64 * 6.0, y as f64, 6.0, 1.0, &color);
         }
     }
 }

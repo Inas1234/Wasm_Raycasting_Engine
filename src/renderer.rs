@@ -2,10 +2,14 @@ use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlImageElement};
 
 pub struct Renderer {
-    context: CanvasRenderingContext2d,
+    pub context: CanvasRenderingContext2d,
+    framebuffer: Vec<u8>, // Store the entire screen in a buffer
     textures: Vec<Vec<u8>>,
     pub texture_width: usize,
-    pub texture_height: usize
+    pub texture_height: usize,
+    pub screen_width: usize,
+    pub screen_height: usize,
+
 }
 
 impl Renderer {
@@ -17,14 +21,19 @@ impl Renderer {
                 .dyn_into::<CanvasRenderingContext2d>()
                 .unwrap();
     
-            let texture_width = 64;
-            let texture_height = 64;
+
+            let screen_width = canvas.width() as usize;
+            let screen_height = canvas.height() as usize;
+    
     
             Renderer {
                 context,
+                framebuffer: vec![0; (screen_width * screen_height * 4) as usize], // RGBA buffer
                 textures: Vec::new(),
-                texture_width,
-                texture_height,
+                texture_width: 64,
+                texture_height: 64,
+                screen_height: screen_height,
+                screen_width: screen_width
             }
     }
 
@@ -104,53 +113,62 @@ impl Renderer {
         self.context.stroke();
     }
     
-    pub fn load_texture(&mut self, image_id: &str) {
+    pub fn load_texture(&mut self, texture_id: &str) {
         let document = web_sys::window().unwrap().document().unwrap();
-        let img = document
-            .get_element_by_id(image_id)
+        let img_element = document
+            .get_element_by_id(texture_id)
             .unwrap()
-            .dyn_into::<HtmlImageElement>()
+            .dyn_into::<web_sys::HtmlImageElement>()
             .unwrap();
-    
+
         let canvas = document
             .create_element("canvas")
             .unwrap()
             .dyn_into::<HtmlCanvasElement>()
             .unwrap();
-        canvas.set_width(img.width());
-        canvas.set_height(img.height());
-    
+
+        canvas.set_width(self.texture_width as u32);
+        canvas.set_height(self.texture_height as u32);
+
         let context = canvas
             .get_context("2d")
             .unwrap()
             .unwrap()
             .dyn_into::<CanvasRenderingContext2d>()
             .unwrap();
+
         context
-            .draw_image_with_html_image_element(&img, 0.0, 0.0)
+            .draw_image_with_html_image_element(&img_element, 0.0, 0.0)
             .unwrap();
-    
+
         let image_data = context
-            .get_image_data(0.0, 0.0, img.width() as f64, img.height() as f64)
-            .unwrap()
-            .data()
-            .to_vec();
-    
-        self.textures.push(image_data);
+            .get_image_data(0.0, 0.0, self.texture_width as f64, self.texture_height as f64)
+            .unwrap();
+
+        let texture_data = image_data.data().to_vec();
+        self.textures.push(texture_data);
     }
 
 
     pub fn get_texture_color(&self, texture_index: usize, tex_x: usize, tex_y: usize) -> String {
-        if let Some(texture_data) = self.textures.get(texture_index) {
-            let index = ((tex_y * self.texture_width + tex_x) * 4) as usize;
-            if index + 3 < texture_data.len() {
-                let r = texture_data[index];
-                let g = texture_data[index + 1];
-                let b = texture_data[index + 2];
-                return format!("rgb({}, {}, {})", r, g, b);
-            }
+        if texture_index >= self.textures.len() {
+            return "black".to_string();
         }
-        "black".to_string()
+
+        let texture = &self.textures[texture_index];
+        let tex_width = self.texture_width;
+        let tex_height = self.texture_height;
+
+        let index = (tex_y * tex_width + tex_x) * 4;
+
+        if index + 3 >= texture.len() {
+            return "black".to_string();
+        }
+
+        let r = texture[index];
+        let g = texture[index + 1];
+        let b = texture[index + 2];
+        format!("rgb({}, {}, {})", r, g, b)
     }
 
     pub fn draw_text(&self, x: f64, y: f64, text: &str) {
@@ -158,6 +176,44 @@ impl Renderer {
         self.context.set_font("16px Arial");
         self.context.fill_text(text, x, y).unwrap();
     }
+
+    pub fn flush(&self) {
+        
+        let image_data = web_sys::ImageData::new_with_u8_clamped_array_and_sh(
+            wasm_bindgen::Clamped(&self.framebuffer),
+            self.screen_width as u32,
+            self.screen_height as u32,
+        )
+        .unwrap();
+        self.context.put_image_data(&image_data, 0.0, 0.0).unwrap();
+    }
+
+    pub fn draw_rect(&mut self, x: f64, y: f64, width: f64, height: f64, color: &str) {
+        let (r, g, b) = match color {
+            "black" => (0, 0, 0),
+            "lightgray" => (211, 211, 211),
+            "darkgray" => (169, 169, 169),
+            "lightblue" => (173, 216, 230),
+            _ => (255, 255, 255),
+        };
+
+        let start_x = x as u32;
+        let start_y = y as u32;
+        let end_x = (x + width) as u32;
+        let end_y = (y + height) as u32;
+
+        for px in start_x..end_x {
+            for py in start_y..end_y {
+                let index = ((py * self.screen_width as u32 + px) * 4) as usize;
+                self.framebuffer[index] = r;
+                self.framebuffer[index + 1] = g;
+                self.framebuffer[index + 2] = b;
+                self.framebuffer[index + 3] = 255; // Alpha channel
+            }
+        }
+    }
+
+
 
     
 }
