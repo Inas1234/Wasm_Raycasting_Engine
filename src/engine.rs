@@ -9,11 +9,14 @@ use crate::game::MAP_WIDTH;
 use crate::renderer::Renderer;
 use crate::game::Player;
 use crate::raycasting::render_scene;
+use crate::utils::get_performance;
+
 
 pub struct Engine {
     player: Player,
     renderer: Renderer,
     keys: Vec<bool>,
+    last_frame_time: f64, // Store the last frame's timestamp
 }
 
 impl Engine {
@@ -38,7 +41,8 @@ impl Engine {
         let engine = Rc::new(RefCell::new(Engine {
             player,
             renderer,
-            keys: vec![false; 256], // For keyboard input
+            keys: vec![false; 256], 
+            last_frame_time: window.performance().unwrap().now()
         }));
 
         Engine::setup_input(engine.clone());
@@ -64,6 +68,16 @@ impl Engine {
 
     pub fn render(&mut self) {
         self.renderer.clear();
+        let current_time = get_performance().now();
+        let delta_time = current_time - self.last_frame_time;
+        self.last_frame_time = current_time;
+    
+        // Calculate FPS (frames per second)
+        let fps = if delta_time > 0.0 { (1000.0 / delta_time).round() } else { 0.0 };
+    
+        // Render the 3D scene
+        render_scene(&self.player, &mut self.renderer);
+    
         render_scene(&self.player, &mut self.renderer);
 
         self.renderer.draw_minimap(
@@ -74,6 +88,8 @@ impl Engine {
             self.player.y,
             self.player.direction,
         );
+
+        self.renderer.draw_text(10.0, 20.0, &format!("FPS: {}", fps));
     }
 
     fn setup_input(engine: Rc<RefCell<Self>>) {

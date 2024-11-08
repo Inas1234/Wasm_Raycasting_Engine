@@ -152,5 +152,12 @@ impl Renderer {
         }
         "black".to_string()
     }
+
+    pub fn draw_text(&self, x: f64, y: f64, text: &str) {
+        self.context.set_fill_style_str("white");
+        self.context.set_font("16px Arial");
+        self.context.fill_text(text, x, y).unwrap();
+    }
+
     
 }
