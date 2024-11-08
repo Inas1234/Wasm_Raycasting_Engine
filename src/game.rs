@@ -65,6 +65,6 @@ impl Player {
             return true;
         }
 
-        MAP[map_y * MAP_WIDTH + map_x] == 1
+        MAP[map_y * MAP_WIDTH + map_x] != 0
     }
 }
