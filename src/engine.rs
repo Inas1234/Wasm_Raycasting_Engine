@@ -26,7 +26,8 @@ impl Engine {
             .dyn_into::<HtmlCanvasElement>()
             .expect("Failed to convert to HtmlCanvasElement");
 
-        let renderer = Renderer::new(canvas.clone());
+        let mut renderer = Renderer::new(canvas.clone());
+        renderer.load_texture("wall-texture");
         let player = Player::new();
 
         let engine = Rc::new(RefCell::new(Engine {

@@ -1,8 +1,11 @@
 use wasm_bindgen::JsCast;
-use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
+use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlImageElement};
 
 pub struct Renderer {
     context: CanvasRenderingContext2d,
+    texture_data: Option<Vec<u8>>,
+    pub texture_width: usize,
+    pub texture_height: usize
 }
 
 impl Renderer {
@@ -14,7 +17,7 @@ impl Renderer {
             .dyn_into::<CanvasRenderingContext2d>()
             .unwrap();
 
-        Renderer { context }
+        Renderer { context, texture_data: None, texture_width: 0, texture_height: 0 }
     }
 
     pub fn clear(&self) {
@@ -84,4 +87,57 @@ impl Renderer {
         self.context.stroke();
     }
 
+    pub fn load_texture(&mut self, image_id: &str){
+        let document = web_sys::window().unwrap().document().unwrap();
+        let image_element = document
+            .get_element_by_id(image_id)
+            .unwrap()
+            .dyn_into::<HtmlImageElement>()
+            .unwrap();
+
+        let canvas = document
+            .create_element("canvas")
+            .unwrap()
+            .dyn_into::<HtmlCanvasElement>()
+            .unwrap();
+
+        canvas.set_width(image_element.width());
+        canvas.set_height(image_element.height());
+
+        let context = canvas
+            .get_context("2d")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<CanvasRenderingContext2d>()
+            .unwrap();
+
+        context
+            .draw_image_with_html_image_element(&image_element, 0.0, 0.0)
+            .unwrap();
+
+        let image_data = context
+            .get_image_data(0.0, 0.0, image_element.width() as f64, image_element.height() as f64)
+            .unwrap()
+            .data()
+            .to_vec();
+
+        self.texture_data = Some(image_data);
+        self.texture_width = image_element.width() as usize;
+        self.texture_height = image_element.height() as usize;
+
+    }
+
+    pub fn get_texture_color(&self, tex_x: usize, tex_y: usize) -> String {
+        if let Some(ref texture_data) = self.texture_data {
+            let index = ((tex_y * self.texture_width + tex_x) * 4) as usize;
+            if index + 3 < texture_data.len() {
+                let r = texture_data[index];
+                let g = texture_data[index + 1];
+                let b = texture_data[index + 2];
+                return format!("rgb({}, {}, {})", r, g, b);
+            }
+        }
+        "black".to_string()
+    }
+    
 }
