@@ -1,4 +1,5 @@
 CPY_FILES = index.html wasm_game_engine_bg.wasm wasm_game_engine.js
+PNG_FILES = $(wildcard static/*.png)
 
 all: wasm-pack
 
@@ -18,5 +19,8 @@ copy:
 	@mkdir -p docs
 	@for file in $(CPY_FILES); do \
 		cp "./static/$$file" "./docs/"; \
+	done
+	@for png in $(PNG_FILES); do \
+		cp "$$png" "./docs/"; \
 	done
 	@echo "Done!"
