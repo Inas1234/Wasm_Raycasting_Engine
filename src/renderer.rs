@@ -36,4 +36,52 @@ impl Renderer {
         self.context.set_fill_style_str(color);
         self.context.fill_rect(x, y, width, height);
     }
+
+    pub fn draw_minimap(
+        &self,
+        map: &[u8],
+        map_width: usize,
+        map_height: usize,
+        player_x: f64,
+        player_y: f64,
+        player_dir: f64,
+    ) {
+        let scale = 10.0; // Scale factor for the minimap size
+        let offset_x = 20.0;
+        let offset_y = 20.0;
+
+        // Draw the map
+        for y in 0..map_height {
+            for x in 0..map_width {
+                let color = if map[y * map_width + x] == 1 {
+                    "black"
+                } else {
+                    "lightgray"
+                };
+                self.draw_line(
+                    offset_x + (x as f64) * scale,
+                    offset_y + (y as f64) * scale,
+                    scale,
+                    scale,
+                    color,
+                );
+            }
+        }
+
+        // Draw the player
+        let player_map_x = offset_x + player_x * scale;
+        let player_map_y = offset_y + player_y * scale;
+        self.draw_circle(player_map_x, player_map_y, 4.0, "blue", 100.0);
+
+        // Draw player's field of view
+        let fov_length = 15.0; // Length of the FOV line
+        let fov_x = player_map_x + fov_length * player_dir.cos();
+        let fov_y = player_map_y + fov_length * player_dir.sin();
+        self.context.begin_path();
+        self.context.move_to(player_map_x, player_map_y);
+        self.context.line_to(fov_x, fov_y);
+        self.context.set_fill_style_str("red"); 
+        self.context.stroke();
+    }
+
 }

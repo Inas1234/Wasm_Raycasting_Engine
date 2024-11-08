@@ -30,13 +30,23 @@ impl Player {
     }
 
     pub fn move_forward(&mut self, distance: f64) {
-        self.x += distance * self.direction.cos();
-        self.y += distance * self.direction.sin();
+        let new_x = self.x + distance * self.direction.cos();
+        let new_y = self.y + distance * self.direction.sin();
+
+        if !self.is_colliding(new_x, new_y) {
+            self.x = new_x;
+            self.y = new_y;
+        }
     }
 
     pub fn move_backward(&mut self, distance: f64) {
-        self.x -= distance * self.direction.cos();
-        self.y -= distance * self.direction.sin();
+        let new_x = self.x - distance * self.direction.cos();
+        let new_y = self.y - distance * self.direction.sin();
+
+        if !self.is_colliding(new_x, new_y) {
+            self.x = new_x;
+            self.y = new_y;
+        }
     }
 
     pub fn turn_left(&mut self, angle: f64) {
@@ -45,5 +55,16 @@ impl Player {
 
     pub fn turn_right(&mut self, angle: f64) {
         self.direction += angle;
+    }
+
+    pub fn is_colliding(&self, new_x: f64, new_y: f64) -> bool {
+        let map_x = new_x as usize;
+        let map_y = new_y as usize;
+
+        if map_x >= MAP_WIDTH || map_y >= MAP_HEIGHT{
+            return true;
+        }
+
+        MAP[map_y * MAP_WIDTH + map_x] == 1
     }
 }

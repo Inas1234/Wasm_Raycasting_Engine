@@ -3,6 +3,9 @@ use wasm_bindgen::JsCast;
 use web_sys::{window, HtmlCanvasElement, KeyboardEvent};
 use std::rc::Rc;
 use std::cell::RefCell;
+use crate::game::MAP;
+use crate::game::MAP_HEIGHT;
+use crate::game::MAP_WIDTH;
 use crate::renderer::Renderer;
 use crate::game::Player;
 use crate::raycasting::render_scene;
@@ -56,6 +59,8 @@ impl Engine {
     pub fn render(&mut self) {
         self.renderer.clear();
         render_scene(&self.player, &mut self.renderer);
+
+        self.renderer.draw_minimap(&MAP, MAP_WIDTH, MAP_HEIGHT, self.player.x, self.player.y, self.player.direction);
     }
 
     fn setup_input(engine: Rc<RefCell<Self>>) {
