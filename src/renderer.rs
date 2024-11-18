@@ -1,10 +1,12 @@
 use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlImageElement};
+use crate::game::Player;
+use crate::sprites::Sprite;
 
 pub struct Renderer {
     pub context: CanvasRenderingContext2d,
     pub framebuffer: Vec<u8>, // Store the entire screen in a buffer
-    textures: Vec<Vec<u8>>,
+    pub textures: Vec<Vec<u8>>,
     pub texture_width: usize,
     pub texture_height: usize,
     pub screen_width: usize,
@@ -14,12 +16,16 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(canvas: HtmlCanvasElement) -> Self {
+            let context_options = web_sys::ContextAttributes2d::new();
+            context_options.set_alpha(true);
+
             let context = canvas
-                .get_context("2d")
+                .get_context_with_context_options("2d", &context_options)
                 .unwrap()
                 .unwrap()
                 .dyn_into::<CanvasRenderingContext2d>()
                 .unwrap();
+
     
 
             let screen_width = canvas.width() as usize;
@@ -109,7 +115,7 @@ impl Renderer {
         self.context.begin_path();
         self.context.move_to(player_map_x, player_map_y);
         self.context.line_to(fov_x, fov_y);
-        self.context.set_stroke_style(&"red".into());
+        self.context.set_fill_style_str("red");
         self.context.stroke();
     }
     
@@ -237,6 +243,72 @@ impl Renderer {
             self.framebuffer[i] = 0; // Set all pixels to black (RGBA = 0)
         }
     }
+
+    pub fn render_sprites(&mut self, player: &Player, sprites: &Vec<Sprite>) {
+        let screen_width = self.screen_width as f64;
+        let screen_height = self.screen_height as f64;
+        let half_screen_height = screen_height / 2.0;
+
+        for sprite in sprites {
+            let sprite_dir_x = sprite.x - player.x;
+            let sprite_dir_y = sprite.y - player.y;
+
+            // Calculate the distance to the sprite
+            let sprite_distance = (sprite_dir_x.powi(2) + sprite_dir_y.powi(2)).sqrt();
+
+            // Calculate angle to the sprite relative to the player's direction
+            let sprite_angle = (sprite_dir_y.atan2(sprite_dir_x) - player.direction).to_degrees();
+
+            // Check if the sprite is in the player's field of view
+            if sprite_angle.abs() > player.fov.to_degrees() / 2.0 {
+                continue;
+            }
+
+            // Calculate the height of the sprite on the screen
+            let sprite_height = (screen_height / sprite_distance) as i32;
+            let draw_start_y = (-sprite_height / 2 + half_screen_height as i32).max(0);
+            let draw_end_y = (sprite_height / 2 + half_screen_height as i32).min(screen_height as i32 - 1);
+
+            // Calculate the horizontal position of the sprite
+            let sprite_screen_x = (screen_width / 2.0) * (1.0 + sprite_dir_x / sprite_distance);
+            let sprite_width = sprite_height;
+            let draw_start_x = (sprite_screen_x - sprite_width as f64 / 2.0) as i32;
+            let draw_end_x = (sprite_screen_x + sprite_width as f64 / 2.0) as i32;
+
+            // Draw the sprite using its texture
+            let texture_index = sprite.texture_id - 1;
+            if texture_index >= self.textures.len() {
+                continue;
+            }
+
+            let texture = &self.textures[texture_index];
+
+            for x in draw_start_x..draw_end_x {
+                if x < 0 || x >= self.screen_width as i32 {
+                    continue;
+                }
+
+                let tex_x = ((x - draw_start_x) * self.texture_width as i32) / sprite_width;
+
+                for y in draw_start_y..draw_end_y {
+                    let d = y * 256 - (screen_height as i32 * 128) + sprite_height * 128;
+                    let tex_y = (d * self.texture_height as i32) / sprite_height / 256;
+
+                    let index = ((tex_y * self.texture_width as i32 + tex_x ) * 4) as usize;
+                    let r = texture[index];
+                    let g = texture[index + 1];
+                    let b = texture[index + 2];
+
+                    let screen_index = (y as usize * self.screen_width + x as usize) * 4;
+                    self.framebuffer[screen_index] = r;
+                    self.framebuffer[screen_index + 1] = g;
+                    self.framebuffer[screen_index + 2] = b;
+                    self.framebuffer[screen_index + 3] = 255;
+                }
+            }
+        }
+    }
+
 
     
 }

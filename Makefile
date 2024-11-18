@@ -12,7 +12,7 @@ clean:
 	rm -rf static pkg
 
 serve:
-	python3 -m http.server 8080 --directory static
+	python3 -m http.server 8000 --directory static
 
 copy:
 	@echo "Copying files..."

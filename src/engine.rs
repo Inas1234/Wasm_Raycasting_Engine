@@ -10,13 +10,14 @@ use crate::renderer::Renderer;
 use crate::game::Player;
 use crate::raycasting::render_scene;
 use crate::utils::get_performance;
-
-
+use crate::sprites::Sprite;
+use crate::console_log;
 pub struct Engine {
     player: Player,
     renderer: Renderer,
     keys: Vec<bool>,
     last_frame_time: f64, // Store the last frame's timestamp
+    sprites: Vec<Sprite>
 }
 
 impl Engine {
@@ -31,18 +32,23 @@ impl Engine {
 
         let mut renderer = Renderer::new(canvas.clone());
 
-        let texture_ids = ["texture1", "texture2", "texture3"];
+        let texture_ids = ["texture1", "texture2", "texture3", "pillar"];
         for texture_id in texture_ids.iter() {
             renderer.load_texture(texture_id);
         }
 
         let player = Player::new();
 
+        let sprites = vec![
+            Sprite {x: 3.5, y: 5.5, texture_id: 4, distance: 0.0},
+        ];
+
         let engine = Rc::new(RefCell::new(Engine {
             player,
             renderer,
             keys: vec![false; 256], 
-            last_frame_time: window.performance().unwrap().now()
+            last_frame_time: window.performance().unwrap().now(),
+            sprites: sprites
         }));
 
         Engine::setup_input(engine.clone());
@@ -68,11 +74,14 @@ impl Engine {
 
     pub fn render(&mut self) {
         self.renderer.clear();
+        console_log!("AAAAA");
+
         let current_time = get_performance().now();
         let delta_time = current_time - self.last_frame_time;
         self.last_frame_time = current_time;
- 
-        render_scene(&self.player, &mut self.renderer);
+        self.sort_sprites();
+
+        render_scene(&self.player, &mut self.renderer, &mut self.sprites);
 
         self.renderer.draw_minimap(
             &MAP,               
@@ -89,6 +98,15 @@ impl Engine {
             self.renderer.draw_text(10.0, 20.0, &format!("FPS: {}", fps as i32));
         }    
 
+    }
+
+    fn sort_sprites(&mut self) {
+        for sprite in &mut self.sprites {
+            sprite.distance = ((self.player.x - sprite.x).powi(2) + (self.player.y - sprite.y).powi(2)).sqrt();
+            console_log!("Sprite Position: ({}, {}), Distance: {}, Texture ID: {}", sprite.x, sprite.y, sprite.distance, sprite.texture_id);
+
+        }
+        self.sprites.sort_by(|a, b| b.distance.partial_cmp(&a.distance).unwrap());
     }
 
     fn setup_input(engine: Rc<RefCell<Self>>) {
@@ -141,6 +159,8 @@ pub fn run() {
 
 impl Engine {
     pub fn start(engine: Rc<RefCell<Self>>) {
+        console_log!("Hello from Rust!");
+
         let f: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
         let g = f.clone();
 
