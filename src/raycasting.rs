@@ -94,7 +94,6 @@ pub fn cast_ray(player: &Player, angle: f64, cos_angle: f64, sin_angle: f64) -> 
 
 
 pub fn render_scene(player: &Player, renderer: &mut Renderer, sprites: &mut Vec<Sprite>) {
-    // Clear the framebuffer before drawing
     renderer.clear_framebuffer();
 
     let num_rays = renderer.screen_width / 6;
@@ -102,7 +101,9 @@ pub fn render_scene(player: &Player, renderer: &mut Renderer, sprites: &mut Vec<
     let screen_height = renderer.screen_height as f64;
     let half_screen_height = screen_height / 2.0;
 
-    // Render ceiling and floor first
+    let mut depth_buffer = vec![std::f64::MAX; renderer.screen_width];
+
+
     for y in 0..renderer.screen_height {
         let is_ceiling = y < (renderer.screen_height / 2);
         let color = if is_ceiling {
@@ -120,7 +121,6 @@ pub fn render_scene(player: &Player, renderer: &mut Renderer, sprites: &mut Vec<
         }
     }
 
-    // Render walls
     for x in 0..num_rays {
         let angle = player.direction - player.fov / 2.0 + (x as f64 / num_rays as f64) * player.fov;
         let cos_angle = angle.cos();
@@ -138,6 +138,14 @@ pub fn render_scene(player: &Player, renderer: &mut Renderer, sprites: &mut Vec<
             (player.x + ray.distance * cos_angle).fract() * renderer.texture_width as f64
         } as usize;
 
+        let corrected_distance = ray.distance * (player.direction - angle).cos();
+        let column = x * 6;
+        for i in 0..6 {
+            if column + i < depth_buffer.len() {
+                depth_buffer[column + i] = corrected_distance;
+            }
+        }
+
         for y in draw_start..draw_end {
             let d = y * 256 - (screen_height as i32 * 128) + line_height * 128;
             let tex_y = ((d * renderer.texture_height as i32) / line_height) / 256;
@@ -153,7 +161,11 @@ pub fn render_scene(player: &Player, renderer: &mut Renderer, sprites: &mut Vec<
     let plane_y = dir_x * fov_factor;
 
 
-    // Sort sprites by distance from player
+    for sprite in sprites.iter_mut() {
+        let dx = sprite.x - player.x;
+        let dy = sprite.y - player.y;
+        sprite.distance = (dx * dx + dy * dy).sqrt();
+    }
     for sprite in sprites.iter_mut() {
         let dx = sprite.x - player.x;
         let dy = sprite.y - player.y;
@@ -161,53 +173,48 @@ pub fn render_scene(player: &Player, renderer: &mut Renderer, sprites: &mut Vec<
     }
     sprites.sort_by(|a, b| b.distance.partial_cmp(&a.distance).unwrap());
 
-    // Render sprites
     for sprite in sprites.iter() {
-        // Translate sprite position to relative to camera
         let sprite_x = sprite.x - player.x;
         let sprite_y = sprite.y - player.y;
 
-        // Inverse determinant for correct matrix multiplication
         let inv_det = 1.0 / (plane_x * dir_y - dir_x * plane_y);
 
-        // Transform sprite with the inverse camera matrix
         let transform_x = inv_det * (dir_y * sprite_x - dir_x * sprite_y);
         let transform_y = inv_det * (-plane_y * sprite_x + plane_x * sprite_y);
 
-        // Avoid rendering sprites behind the camera
         if transform_y <= 0.0 {
             continue;
         }
 
-        // Project the sprite onto the screen
         let sprite_screen_x = ((screen_width / 2.0) * (1.0 + transform_x / transform_y)) as i32;
 
-        // Calculate sprite dimensions on screen
         let sprite_height = (screen_height / transform_y).abs() as i32;
         let sprite_width = sprite_height;
 
-        // Calculate drawing boundaries
         let draw_start_y = (-sprite_height / 2 + half_screen_height as i32).max(0);
         let draw_end_y = (sprite_height / 2 + half_screen_height as i32).min(screen_height as i32 - 1);
         let draw_start_x = (-sprite_width / 2 + sprite_screen_x).max(0);
         let draw_end_x = (sprite_width / 2 + sprite_screen_x).min(renderer.screen_width as i32 - 1);
 
-        // Get the texture for the sprite
         let texture_index = sprite.texture_id as usize - 1;
         if texture_index >= renderer.textures.len() {
             continue;
         }
         let texture = &renderer.textures[texture_index];
 
-        // Loop through every vertical stripe of the sprite on screen
-// Inside the sprite rendering loop
         for stripe in draw_start_x..draw_end_x {
             if stripe < 0 || stripe >= renderer.screen_width as i32 {
                 continue;
             }
 
             let tex_x = ((stripe - (-sprite_width / 2 + sprite_screen_x)) * renderer.texture_width as i32) / sprite_width;
+            if stripe as usize >= depth_buffer.len() {
+                continue;
+            }
 
+            if transform_y >= depth_buffer[stripe as usize] {
+                continue; 
+            }
             for y in draw_start_y..draw_end_y {
                 if y < 0 || y >= renderer.screen_height as i32 {
                     continue;
